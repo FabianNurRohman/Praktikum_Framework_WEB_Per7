@@ -8,16 +8,45 @@ use App\Models\Product;
 class ProductController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Display a listing of the resource (with search, filter & sorting).
      */
-    public function index()
+    public function index(Request $request)
     {
-        // Mengambil semua data dari tabel products
-        $data = Product::all();
-
-        // Mengirim data ke view
-        return view('master-data.product-master.index-product', compact('data'));
-    }
+        $query = Product::query();
+    
+        $search = $request->input('search');
+        $sort = $request->input('sort', 'default'); // default sorting
+    
+        // 🔍 Pencarian
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('product_name', 'like', '%' . $search . '%')
+                  ->orWhere('type', 'like', '%' . $search . '%')
+                  ->orWhere('producer', 'like', '%' . $search . '%');
+            });
+        }
+    
+        // 🔽 Sorting
+        switch ($sort) {
+            case 'name':
+                $query->orderBy('product_name', 'asc');
+                break;
+            case 'type':
+                $query->orderBy('type', 'asc');
+                break;
+            case 'producer':
+                $query->orderBy('producer', 'asc');
+                break;
+            default:
+                // Default: urut berdasarkan produk terbaru
+                $query->orderBy('created_at', 'asc');
+                break;
+        }
+    
+        $products = $query->paginate(4);
+    
+        return view('master-data.product-master.index-product', compact('products', 'sort', 'search'));
+    }    
 
     /**
      * Show the form for creating a new resource.
@@ -49,12 +78,12 @@ class ProductController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Display the specified resource (show detail product).
      */
     public function show(string $id)
     {
         $product = Product::findOrFail($id);
-        return view('master-data.product-master.show-product', compact('product'));
+        return view('master-data.product-master.detail-product', compact('product'));
     }
 
     /**
@@ -71,7 +100,6 @@ class ProductController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        // Validasi input data
         $validatedData = $request->validate([
             'product_name' => 'required|string|max:255',
             'unit' => 'required|string|max:50',
@@ -81,10 +109,7 @@ class ProductController extends Controller
             'producer' => 'required|string|max:255',
         ]);
 
-        // Temukan produk berdasarkan ID
         $product = Product::findOrFail($id);
-
-        // Update data produk
         $product->update($validatedData);
 
         return redirect()->route('product-index')->with('success', 'Product berhasil diperbarui!');
